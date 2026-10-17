@@ -1,0 +1,9 @@
+name = "LeanTasks"
+version = "0.1.0"
+defaultTargets = ["LeanTasks"]
+
+# Tasks, reference solutions and checks. Every module under `LeanTasks/` is
+# built (via `globs`), so adding a task needs no edits to the root file.
+[[lean_lib]]
+name = "LeanTasks"
+globs = ["LeanTasks.*"]

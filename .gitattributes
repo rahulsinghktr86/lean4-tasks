@@ -1,0 +1,2 @@
+# Use LF everywhere: the shell scripts and the mutation tests depend on it.
+* text=auto eol=lf

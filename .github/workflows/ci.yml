@@ -1,0 +1,44 @@
+name: Lean build & checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Installs the toolchain from `lean-toolchain` and runs `lake build`: the
+      # unit tests (TaskN/Test.lean), the consistency checks (TaskN/Check.lean),
+      # the difficulty calibration (TaskN/Calibration.lean) and the axiom-audit
+      # self-test (AxiomCheckTest.lean).
+      - uses: leanprover/lean-action@v1
+
+      # Re-check every module with the standalone kernel checker, independently
+      # of the elaborator that produced it.
+      - name: Re-check all modules with leanchecker
+        run: |
+          mods=$(find LeanTasks -name '*.lean' | sed 's/\.lean$//; s#/#.#g' | sort)
+          echo "$mods"
+          lake env leanchecker $mods
+
+      - name: Reference solutions must not contain `sorry`
+        run: |
+          if grep -nw sorry LeanTasks/Task*/Solution.lean 2>/dev/null; then
+            echo "::error::found sorry in a reference solution"
+            exit 1
+          fi
+
+      # The grader must accept each reference solution, and reject each unsolved
+      # problem only because of `sorry`.
+      - name: Test the grader on the tasks
+        run: bash scripts/grade-reference.sh
+
+      # Breaks the repo and the grader in specific ways, and submits known
+      # cheating solutions (scripts/mutations/*.sh); each must be caught.
+      - name: Mutation tests
+        run: bash scripts/mutate.sh
