@@ -66,9 +66,8 @@ grade_reject 1 "native_decide with implemented_by" \
   "^REJECT: .*non-standard axioms: .*native_decide" \
   "cp scripts/mutations/payloads/task1_native_decide.lean \"\$SUB\""
 
-# This payload needs `import Lean`, so the import check rejects it first. The
-# grader test "grade.sh skips leanchecker" below shows that leanchecker alone
-# also rejects it.
+# This payload needs `import Lean`, so the import restriction rejects it. The
+# grader tests below show that leanchecker also rejects it on its own.
 grade_reject 1 "proof of False added with kernel checking disabled" \
   "^REJECT: .* imports Lean;" \
   "cp scripts/mutations/payloads/task1_kernel_bypass.lean \"\$SUB\""
@@ -77,12 +76,20 @@ grade_reject 1 "overwrites the grader while being compiled, with sorry" \
   "^REJECT: .*sorryAx" \
   "cp scripts/mutations/payloads/task1_build_time_io.lean \"\$SUB\""
 
+grade_reject 1 "replaces the pristine snapshot while being compiled, with sorry" \
+  "^REJECT: the pristine snapshot was modified" \
+  "cp scripts/mutations/payloads/task1_snapshot_tamper.lean \"\$SUB\""
+
 ## A correct submission that differs from the reference
 
 grade_accept 1 "alternative proof" \
   "cp scripts/mutations/payloads/task1_alt_solution.lean \"\$SUB\""
 
-## Weakened graders: each part of the grader is needed to reject some submission
+## Weakened graders
+# Each `mutant` below removes part of the grader and shows that the weakened
+# grader then ACCEPTS a bad submission, so that part is needed. The `defense`
+# case shows that leanchecker is an independent second line of defense against
+# the kernel bypass, which the import restriction already stops.
 
 mutant "grader: Verify.lean ignores axioms" \
   "^ACCEPT$" \
@@ -99,13 +106,21 @@ mutant "grader: Verify.lean allows any import" \
   "! bash scripts/grade.sh 1 scripts/mutations/payloads/task1_import_solution.lean" \
   "sed -i 's/(fun m => m != .Init && m != defs)/(fun _ => false)/' scripts/Verify.lean"
 
-# The import restriction also rejects this payload (it needs `import Lean`), so it
-# is disabled too: this shows that leanchecker catches the bypass on its own.
+defense "grader: with imports unrestricted, leanchecker alone rejects the kernel bypass" \
+  "^REJECT: leanchecker" \
+  "sed -i 's/(fun m => m != .Init && m != defs)/(fun _ => false)/' scripts/Verify.lean" \
+  1 scripts/mutations/payloads/task1_kernel_bypass.lean
+
 mutant "grader: grade.sh skips leanchecker (and imports are unrestricted)" \
   "^ACCEPT$" \
   "! bash scripts/grade.sh 1 scripts/mutations/payloads/task1_kernel_bypass.lean" \
   "sed -i 's/^if ! lake env leanchecker \"\$module\"; then$/if false; then/' scripts/grade.sh && \
    sed -i 's/(fun m => m != .Init && m != defs)/(fun _ => false)/' scripts/Verify.lean"
+
+mutant "grader: grade.sh skips the snapshot integrity check" \
+  "^ACCEPT$" \
+  "! bash scripts/grade.sh 1 scripts/mutations/payloads/task1_snapshot_tamper.lean" \
+  "sed -i 's/snapshot_sum\" ]; then/snapshot_sum\" ] \\&\\& false; then/' scripts/grade.sh"
 
 mutant "grader: grade.sh builds and checks the submission in one tree" \
   "^ACCEPT$" \
