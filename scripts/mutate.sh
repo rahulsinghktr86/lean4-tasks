@@ -36,10 +36,23 @@ fail() {
 }
 
 # Lake's `trace:` lines echo file paths, so they are ignored when matching.
-matches() { grep -v '^trace:' <<<"$2" | grep -qE -- "$1"; }
+# (No pipes here: with `pipefail`, a reader that stops early, like `grep -q`,
+# would make the whole pipeline fail on long output.)
+untraced() { grep -v '^trace:' <<<"$1" || true; }
+matches() {
+  local text
+  text="$(untraced "$2")"
+  grep -qE -- "$1" <<<"$text"
+}
 
 # Prints the first non-trace line of $2 that matches regex $1, indented.
-show() { grep -v '^trace:' <<<"$2" | grep -m1 -E -- "$1" | sed 's/^/          /'; }
+show() {
+  local text line
+  text="$(untraced "$2")"
+  line="$(grep -m1 -E -- "$1" <<<"$text" || true)"
+  [ -n "$line" ] && echo "          $line"
+  return 0
+}
 
 echo "== baseline"
 mkdir "$tmp/base"
