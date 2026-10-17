@@ -1,0 +1,4 @@
+insertionSort_sorted
+insertionSort_perm
+sorted_perm_unique
+insertionSort_eq_of_perm
