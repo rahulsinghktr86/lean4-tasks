@@ -18,6 +18,11 @@
 #       The shell code writes a correct solution, different from the reference
 #       one, to "$SUB". scripts/grade.sh must ACCEPT it.
 #
+#   defense <description> <expected regex> <shell code> <task> <submission>
+#       The shell code weakens the grader in a copy of the repo (e.g. removes
+#       one check). The weakened grader must still REJECT the submission, with
+#       output matching the regex: another check takes over.
+#
 # Shell code runs in the repo root; it must only read there (it may write to
 # "$SUB"). Before any case runs, the unmutated repo must build and the grader
 # must accept every reference solution, so a broken environment cannot make a
@@ -143,6 +148,32 @@ grade_accept() {
     return
   fi
   echo "accepted: $desc"
+}
+
+defense() {
+  local desc="$1" expect="$2" code="$3" task="$4" sub="$5" m="$tmp/mutant" out
+  total=$((total + 1))
+  rm -rf "$m"
+  cp -r "$tmp/base" "$m"
+  if ! (cd "$m" && eval "$code"); then
+    fail "$desc (the change could not be applied)"
+    return
+  fi
+  if diff -rq --exclude=.lake "$tmp/base" "$m" >/dev/null; then
+    fail "$desc (the change changed nothing)"
+    return
+  fi
+  if out="$(cd "$m" && bash scripts/grade.sh "$task" "$sub" 2>&1)"; then
+    fail "$desc (the weakened grader ACCEPTED it)"
+    return
+  fi
+  if ! matches "$expect" "$out"; then
+    fail "$desc (rejected, but the output does not match /$expect/)"
+    show "error|REJECT" "$out"
+    return
+  fi
+  echo "rejected: $desc"
+  show "$expect" "$out"
 }
 
 shopt -s nullglob

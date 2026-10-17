@@ -24,7 +24,7 @@ request.
 
 Difficulty ratings take core automation into account. Each task's
 `Calibration.lean` checks, in Lean, that the obvious automated attempts fail,
-and also records any automation shortcuts that do work, so the ratings can be
+and also records the automation shortcuts we found, so the ratings can be
 verified rather than taken on trust.
 
 ## Layout
@@ -60,8 +60,9 @@ Rules:
 
 * do not change the theorem statements or `Defs.lean`;
 * helper lemmas and helper definitions are allowed;
-* `Problem.lean` may import only `LeanTasks.TaskN.Defs` (core Lean is always
-  available); Mathlib is not allowed.
+* `Problem.lean` may import only `LeanTasks.TaskN.Defs`. The prelude `Init`
+  is always available, including `omega`, `simp`, `grind` and `lia`; any other
+  import, such as `Std`, `Lean` or Mathlib, is rejected by the grader.
 
 `lake build` gives quick feedback while you work (for instance, `Check.lean`
 reports a changed statement), but it is not the grader.
@@ -78,17 +79,19 @@ compiled `.olean` reaches the trusted files:
 1. **Sandbox.** A fresh copy of the repo, with the submission installed as
    `LeanTasks/TaskN/Problem.lean`, compiles the submission.
 2. **Trusted tree.** A second fresh copy, created only after phase 1 has
-   finished, compiles `Defs.lean` and the reference `Solution.lean` from
-   pristine sources and takes in only the submission's `Problem.olean`. Then:
+   finished from a snapshot of the pristine sources (its checksum is verified,
+   so phase 1 cannot have replaced it), compiles `Defs.lean` and the reference
+   `Solution.lean` and takes in only the submission's `Problem.olean`. Then:
+   * **[`scripts/Verify.lean`](scripts/Verify.lean)** reads the submission's
+     imports from the header of its compiled file and rejects any import other
+     than `Init` and `Defs.lean`. It then loads the submission *as data* and,
+     for each theorem in `graded.txt`, requires the statement to be the same
+     kernel term as the reference statement, and the proof to depend only on
+     `propext`, `Classical.choice` and `Quot.sound` (no `sorry`, no custom
+     `axiom`, no `native_decide`).
    * **`leanchecker`** replays every declaration of the submission through the
      kernel, so a proof cannot sneak past the kernel (for example by adding
-     declarations with kernel checking disabled);
-   * **[`scripts/Verify.lean`](scripts/Verify.lean)** loads the submission *as
-     data* and, for each theorem in `graded.txt`, requires the statement to be
-     the same kernel term as the reference statement, and the proof to depend
-     only on `propext`, `Classical.choice` and `Quot.sound` (no `sorry`, no
-     custom `axiom`, no `native_decide`). It also requires `Problem.lean` to
-     import nothing but `Defs.lean`.
+     declarations with kernel checking disabled).
 
 Why out of process: a check written as Lean code in a file that imports the
 submission can be subverted by that submission, for example by a macro that
@@ -99,8 +102,9 @@ instances or elaborators.
 **Threat model.** Lean code can run arbitrary IO while it is being compiled, and
 phase 1 compiles the submission with your permissions. The two phases stop a
 submission from tampering with the files used for grading (the mutation tests
-include a submission that tries), but not with the rest of your machine. Grade
-untrusted submissions inside a disposable container or VM.
+include submissions that try), but not with the rest of your machine. Loading a
+compiled file is also not hardened against a maliciously crafted `.olean`.
+Grade untrusted submissions inside a disposable container or VM.
 
 ## How the repository is tested
 
@@ -137,13 +141,16 @@ CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) also:
     coercion, a `type_of%` macro or a decoy axiom, a macro that disables the
     in-Lean audit, re-exporting the reference solution, a custom axiom,
     `native_decide` with `implemented_by`, a proof of `False` added with kernel
-    checking disabled, and a submission that overwrites the grader while it is
-    being compiled;
+    checking disabled, and submissions that, while being compiled, overwrite
+    the grader or replace the pristine snapshot;
   * correct submissions that differ from the reference, which must be accepted;
-  * weakened graders (verifier without the axiom check, the statement
-    comparison or the import restriction; no `leanchecker`; submission built
-    and checked in one tree). Each must then accept some bad submission, which
-    shows that every part of the grader is needed.
+  * weakened graders. Removing any one of the verifier's axiom check,
+    statement comparison or import restriction, the snapshot checksum, or the
+    separation of the two phases makes the grader accept some bad submission,
+    so each of these is needed. `leanchecker` is an independent second line of
+    defense: the kernel-bypass submission is stopped by the import restriction,
+    with imports unrestricted it is stopped by `leanchecker` alone, and only
+    with both removed is it accepted.
 
 Before running any case, `mutate.sh` checks that the unmutated repo builds and
 that every reference solution is accepted, so a broken environment cannot make
