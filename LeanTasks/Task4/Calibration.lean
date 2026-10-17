@@ -54,4 +54,25 @@ example : Function.Injective compile := by
     (intro a b h; induction a generalizing b <;> cases b <;> grind [compile])
   exact Solution.compile_injective
 
+-- Disclosed: the key idea for part 2 is a left inverse of `compile`. Once such a
+-- decompiler is written down, injectivity takes two short steps; this is why the
+-- hint does not name the idea.
+def dec : List Instr → List Expr → Option (List Expr)
+  | [], st => some st
+  | .push n :: p, st => dec p (.num n :: st)
+  | .load x :: p, st => dec p (.var x :: st)
+  | .add :: p, b :: a :: st => dec p (.add a b :: st)
+  | .sub :: p, b :: a :: st => dec p (.sub a b :: st)
+  | .mul :: p, b :: a :: st => dec p (.mul a b :: st)
+  | _ :: _, _ => none
+
+theorem dec_compile (e : Expr) (p : List Instr) (st : List Expr) :
+    dec (compile e ++ p) st = dec p (e :: st) := by
+  induction e generalizing p st <;> simp_all [compile, dec]
+
+example : Function.Injective compile := fun a b h => by
+  have := dec_compile a [] []
+  have := dec_compile b [] []
+  simp_all [dec]
+
 end LeanTasks.Task4.Calibration

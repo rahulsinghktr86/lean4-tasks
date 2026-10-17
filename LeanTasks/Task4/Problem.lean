@@ -6,7 +6,7 @@ import LeanTasks.Task4.Defs
 * **Difficulty:** medium
 * **Mathlib:** not allowed (core Lean 4 only)
 * **Topic:** structural induction on syntax, strengthening an induction
-  hypothesis, proving injectivity via a left inverse
+  hypothesis, injectivity of a compiler
 
 1. **Correctness.** Running the compiled code of `e` on any stack `s` succeeds
    and pushes exactly the value of `e`. In particular, compiled code never
@@ -21,8 +21,8 @@ Helper lemmas and helper definitions are allowed. Import nothing but
 *Hints:* for part 1, a bare induction on `e` gets stuck in the binary cases,
 because `compile a` is followed by more code. Find a more general statement
 that the induction can carry. For part 2, a direct induction on two
-expressions runs into equations between appended lists of different shapes.
-Consider defining a function that recovers the expression from its code.
+expressions runs into equations between appended lists of different shapes,
+so a different idea is needed.
 (`Calibration.lean` checks that the obvious one-line attempts fail.)
 -/
 
